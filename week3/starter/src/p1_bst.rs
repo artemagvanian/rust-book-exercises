@@ -23,6 +23,7 @@
 
 use std::fmt::{self, Debug, Display};
 use std::mem;
+use std::ops::Deref;
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum BST<T> {
@@ -38,7 +39,13 @@ impl<T: PartialOrd + Display> BST<T> {
     ///
     /// For this and all other methods, you can test it by running `cargo test <method name>`.
     pub fn len(&self) -> i32 {
-        unimplemented!()
+        fn len_hlp<T: PartialOrd + Display>(t: &BST<T>) -> i32 {
+            match t {
+                BST::Leaf => 0,
+                BST::Node(_, l, r) => len_hlp(l) + len_hlp(r) + 1
+            }
+        }
+        len_hlp(self)
     }
 
     /// P1b: `insert` takes a value of type T, and inserts it into the BST.
@@ -47,13 +54,41 @@ impl<T: PartialOrd + Display> BST<T> {
     /// This method should *NOT* be fancy, i.e. involve rotating or rebalancing
     /// the tree. The reference solution is 7 lines long.
     pub fn insert(&mut self, t: T) {
-        unimplemented!()
+        fn insert_hlp<T: PartialOrd + Display>(bst: &mut BST<T>, t: T) {
+            match bst {
+                BST::Leaf =>
+                    *bst = BST::Node(t, Box::new(BST::Leaf), Box::new(BST::Leaf)),
+                BST::Node(v, l, r) =>
+                    if t > *v {
+                        insert_hlp(r, t);
+                    } else if t < *v {
+                        insert_hlp(l, t);
+                    }
+            }
+        }
+        insert_hlp(self, t)
     }
 
     /// P1c: `search` takes a query of type &T, and returns the smallest element
     /// greater than or equal to the query element. If no such element exists, then return None.
     pub fn search(&self, query: &T) -> Option<&T> {
-        unimplemented!()
+        fn search_hlp<'a, T: PartialOrd + Display>(bst: &'a BST<T>, query: &T) -> Option<&'a T> {
+            match bst {
+                BST::Leaf => Option::None,
+                BST::Node(v, l, r) =>
+                    if *v == *query {
+                        Some(v)
+                    } else if *v > *query {
+                        match l.deref() {
+                            BST::Leaf => Some(v),
+                            BST::Node(_, _, _) => search_hlp(l, query)
+                        }
+                    } else {
+                        search_hlp(r, query)
+                    }
+            }
+        }
+        search_hlp(self, query)
     }
 
     /// P1d [CHALLENGE PROBLEM, try if you're feeling up to it!]
