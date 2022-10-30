@@ -42,14 +42,27 @@ fn round_all_test() {
 ///   * representing which strings in the collection contain the needle
 pub fn find_contains(
   /* Pick and justify your parameters */
-) -> () /* Pick and justify your return type */
+  haystack: &[String],
+  needle: &str
+) -> Vec<bool> /* Pick and justify your return type */
 {
-  unimplemented!();
+  let mut r: Vec<bool> = vec![];
+  for item in haystack {
+    if item.contains(needle) {
+      r.push(true);
+    } else {
+      r.push(false);
+    }
+  }
+  return r;
 }
 
 #[test]
 fn find_contains_test() {
   /* Add your unit test here! */
+  let strings = vec![String::from("banana"), String::from("esteban")];
+  let r = find_contains(&strings, &String::from("nana"));
+  assert_eq!(r, vec![true, false]);
 }
 
 /// P2b: fill_progress_bar is a function that takes:
@@ -61,12 +74,26 @@ fn find_contains_test() {
 ///   [==        ]
 pub fn fill_progress_bar(
   /* Pick and justify your parameters */
+  buf: &mut String,
+  delims: (char, char),
+  frac: f32
 ) -> () /* Pick and justify your return type */
 {
-  unimplemented!();
+  buf.push(delims.0);
+  for i in 0..10 {
+    if i as f32 / 10.0 < frac {
+      buf.push('=');
+    } else {
+      buf.push(' ');
+    }
+  }
+  buf.push(delims.1);
 }
 
 #[test]
 fn test_fill_progress_bar() {
   /* Add your unit test here! */
+  let mut buf: String = String::from("");
+  fill_progress_bar(&mut buf, ('[', ']'), 0.2);
+  assert_eq!(buf, String::from("[==        ]"));
 }

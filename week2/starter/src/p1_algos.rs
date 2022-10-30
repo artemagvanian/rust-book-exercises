@@ -11,7 +11,18 @@
 ///
 /// Run `cargo test insort` to check your answers.
 pub fn insort(v: &mut Vec<i32>, n: i32) {
-  unimplemented!()
+  let mut ext_idx = v.len();
+  for i in 0..v.len() {
+    if v[i] > n {
+      ext_idx = i;
+      break;
+    }
+  }
+  v.push(0);
+  let mut buf = n;
+  for i in ext_idx..v.len() {
+    (v[i], buf) = (buf, v[i]);
+  }
 }
 
 type Node = i32;
@@ -31,7 +42,21 @@ type Node = i32;
 ///
 /// Run `cargo test connected` to check your answers.
 pub fn connected(edges: &[(&Node, &Node)], src: &Node, dst: &Node) -> bool {
-  unimplemented!()
+  let mut connected_nodes  = vec![src];
+  loop {
+    let mut added = false;
+    for (from, to) in edges {
+      if connected_nodes.iter().any(|x| std::ptr::eq(*from, *x)) &&
+         !connected_nodes.iter().any(|x| std::ptr::eq(*to, *x)) {
+        connected_nodes.push(*to);
+        added = true;
+      }
+    }
+    if !added {
+      break;
+    }
+  }
+  connected_nodes.iter().any(|x| std::ptr::eq(dst, *x))
 }
 
 #[cfg(test)]
