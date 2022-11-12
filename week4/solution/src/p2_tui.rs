@@ -23,25 +23,32 @@
 //! cargo test container -- --nocapture
 //! ```
 
-use std::cmp::max;
-
-struct Dimensions {
-    width: usize,
-    height: usize
+pub struct Dimensions {
+    pub width: usize,
+    pub height: usize,
 }
 
-struct Text {
-    text: String,
-}
-
-trait Element {
+pub trait Element {
     fn dimensions(&self) -> Dimensions;
     fn render(&self);
 }
 
+pub struct Text {
+    text: String,
+}
+
+impl Text {
+    pub fn new(text: String) -> Self {
+        Text { text }
+    }
+}
+
 impl Element for Text {
     fn dimensions(&self) -> Dimensions {
-        Dimensions { width: self.text.len(), height: 1 }
+        Dimensions {
+            width: self.text.len(),
+            height: 1,
+        }
     }
 
     fn render(&self) {
@@ -49,44 +56,56 @@ impl Element for Text {
     }
 }
 
-struct Heading {
-    inner_text: Text
+pub struct Heading {
+    text: Text,
+}
+
+impl Heading {
+    pub fn new(text: String) -> Self {
+        Heading {
+            text: Text::new(text),
+        }
+    }
 }
 
 impl Element for Heading {
     fn dimensions(&self) -> Dimensions {
-        self.inner_text.dimensions()
+        self.text.dimensions()
     }
 
     fn render(&self) {
-        print!("{}", self.inner_text.text);
+        print!("\u{001b}[1m");
+        self.text.render();
+        print!("\u{001b}[0m")
     }
 }
 
-struct Container {
+pub struct Container {
     children: Vec<Box<dyn Element>>,
 }
 
 impl Container {
+    pub fn new(children: Vec<Box<dyn Element>>) -> Self {
+        Container { children }
+    }
+}
+
+impl Element for Container {
     fn dimensions(&self) -> Dimensions {
-        let mut max_width: usize = 0;
-        let mut sum_height: usize = 0;
-        for child in &self.children {
-            let dims: Dimensions = child.dimensions();
-            max_width = max(max_width, dims.width);
-            sum_height += dims.height;
-        }
-        return Dimensions{ width: max_width + 2, height: sum_height};
+        let child_dims = self
+            .children
+            .iter()
+            .map(|c| c.dimensions())
+            .collect::<Vec<_>>();
+        let width = child_dims.iter().map(|dims| dims.width).max().unwrap_or(0) + 2;
+        let height = child_dims.iter().map(|dims| dims.height).sum::<usize>();
+        Dimensions { width, height }
     }
 
     fn render(&self) {
         let dims = self.dimensions();
         let render_line = || {
-            print!("+");
-            for _ in 0..dims.width - 2 {
-                print!("-");
-            }
-            println!("+");
+            println!("+{}+", "-".repeat(dims.width - 2));
         };
         render_line();
 
@@ -94,11 +113,9 @@ impl Container {
             let child_dims = child.dimensions();
             print!("|");
             child.render();
-            for _ in 0..dims.width - 2 - child_dims.width {
-                print!(" ");
-            }
-            println!("|");
+            println!("{}|", " ".repeat(dims.width - 2 - child_dims.width))
         }
+
         render_line();
     }
 }
@@ -108,14 +125,9 @@ mod test {
     use super::*;
     #[test]
     fn container_test() {
-        let text = Heading { inner_text: Text { text: String::from("Hello world") }};
-        let text2 = Text { text: String::from("This is a long string of text") };
-        let mut children: Vec<Box<dyn Element>> = vec![];
-
-        children.push(Box::new(text));
-        children.push(Box::new(text2));
-        let container = Container { children };
-
+        let text = Heading::new("Hello world".into());
+        let text2 = Text::new("This is a long string of text".into());
+        let container = Container::new(vec![Box::new(text), Box::new(text2)]);
         container.render();
     }
 }
