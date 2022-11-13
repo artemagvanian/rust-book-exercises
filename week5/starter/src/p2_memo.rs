@@ -28,25 +28,42 @@
 //! Note that there is a unit test `memo_scope_test` that is commented out. It *should not compile*.
 //! So you can try commenting it in, and verifying that you get a compiler error.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::pin::Pin;
+use std::mem::transmute;
 
 pub struct Memo<Func, Input, Output> {
     func: Func,
-    cache: () // TODO
+    cache: RefCell<HashMap<Input, Pin<Box<Output>>>>
 }
 
 impl<Func, Input, Output> Memo<Func, Input, Output>
 where
     Func: Fn(Input) -> Output,
+    Input: Eq + Hash + Copy,
+    Output: Unpin
 {
     pub fn new(func: Func) -> Self {
         Memo {
             func,
-            cache: () // TODO
+            cache: RefCell::new(HashMap::new())
         }
     }
 
+    pub fn call(&self, input: Input) -> &Output {
+        if !self.cache.borrow().contains_key(&input) {
+            let r = (self.func)(input);
+            self.cache.borrow_mut().insert(input, Pin::new(Box::new(r)));
 
-    pub fn call() {} // TODO
+        }
+        let result = unsafe {
+            transmute::<&Pin<Box<Output>>, &Pin<Box<Output>>>
+                (self.cache.borrow().get(&input).unwrap())
+        };
+        result
+    }
 }
 /* END SOLUTION */
 
