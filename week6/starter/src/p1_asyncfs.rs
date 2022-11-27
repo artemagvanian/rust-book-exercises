@@ -21,14 +21,10 @@
 //! Beware: your design MUST not allow the promise to live longer than the `File` that it holds! You can double
 //! check this is true by uncommenting `read_bad_scope_test` below, and ensuring it does not compile.
 
-use std::{
-    fs::File,
-    future::Future,
-    io,
-    marker::PhantomData,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::{fs::File, future::Future, io, marker::PhantomData, pin::Pin, task::{Context, Poll}, thread};
+use std::io::Read;
+use std::sync::{Arc, Mutex};
+use std::task::Waker;
 
 
 /// Extension trait for asynchronous methods on [`File`].
@@ -44,8 +40,14 @@ pub trait AsyncFile {
 
 /// The file reading future.
 pub struct ReadFile<'a> {
-    // TODO: remaining fields
     _marker: PhantomData<&'a ()>,
+    shared_state: Arc<Mutex<SharedState>>
+}
+
+pub struct SharedState {
+    file_data: Option<Vec<u8>>,
+    ready: bool,
+    waker: Option<Waker>
 }
 
 // This impl constructs the future when the user calls `file.read_async()`.
@@ -53,7 +55,32 @@ impl AsyncFile for File {
     type ReadFuture<'a> = ReadFile<'a>;
 
     fn read_async<'a>(&'a mut self) -> ReadFile<'a> {
-        todo!()
+        let shared_state = Arc::new(Mutex::new(SharedState {
+            file_data: None,
+            ready: false,
+            waker: None
+        }));
+
+        let thread_shared_state = shared_state.clone();
+        let mut file_copy = self.try_clone().unwrap();
+
+        thread::spawn(move || {
+            let mut shared_state = thread_shared_state.lock().unwrap();
+            let mut buf = vec![];
+
+            match file_copy.read_to_end(&mut buf) {
+                Ok(_) => {
+                    shared_state.file_data = Some(buf);
+                    shared_state.ready = true;
+                    if let Some(waker) = shared_state.waker.take() {
+                        waker.wake()
+                    }
+                },
+                Err(_) => panic!("Failed to read the file")
+            }
+        });
+
+        ReadFile { _marker: Default::default(), shared_state }
     }
 }
 
@@ -61,8 +88,23 @@ impl AsyncFile for File {
 impl<'a> Future for ReadFile<'a> {
     type Output = io::Result<Vec<u8>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        todo!()
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let cloned_shared_state = self.shared_state.clone();
+        let mut shared_state = cloned_shared_state.lock().unwrap();
+        if shared_state.ready {
+            match &shared_state.file_data {
+                Some(v) => {
+                    Poll::Ready(Ok(v.clone()))
+                }
+                None => {
+                    Poll::Ready(Ok(vec![]))
+                }
+            }
+
+        } else {
+            shared_state.waker = Some(cx.waker().clone());
+            Poll::Pending
+        }
     }
 }
 
