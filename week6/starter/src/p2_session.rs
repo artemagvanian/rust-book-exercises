@@ -47,6 +47,9 @@ pub struct Send<T, S>(PhantomData<(T, S)>);
 /// Close the session
 pub struct Close;
 
+pub struct Offer<T, S>(PhantomData<(T, S)>);
+
+pub struct Choose<T, S>(PhantomData<(T, S)>);
 
 /// Compute the dual of a session type.
 pub trait HasDual {
@@ -65,6 +68,23 @@ impl<T, S: HasDual> HasDual for Send<T, S> {
     type Dual = Recv<T, S::Dual>;
 }
 
+pub enum Branch<T, S> {
+    Left(Chan<T>),
+    Right(Chan<S>)
+}
+
+pub enum Choice {
+    LeftChoice,
+    RightChoice
+}
+
+impl<T: HasDual, S: HasDual> HasDual for Offer<T, S> {
+    type Dual = Choose<T::Dual, S::Dual>;
+}
+
+impl<T: HasDual, S: HasDual> HasDual for Choose<T, S> {
+    type Dual = Offer<T::Dual, S::Dual>;
+}
 
 pub struct Chan<S> {
     sender: mpsc::Sender<Box<dyn Any + marker::Send + 'static>>,
@@ -120,6 +140,32 @@ impl<T: 'static, S> Chan<Recv<T, S>> {
     }
 }
 
+impl<T: 'static, S> Chan<Offer<T, S>> {
+    pub fn offer(self) -> Branch<T, S> {
+        let ch = *self.receiver.recv().unwrap().downcast::<Choice>().unwrap();
+        match ch {
+            Choice::LeftChoice => {
+                Branch::Left(cast_channel!(self))
+            },
+            Choice::RightChoice => {
+                Branch::Right(cast_channel!(self))
+            }
+        }
+    }
+}
+
+impl<T: 'static, S> Chan<Choose<T, S>> {
+    pub fn choose_left(self) -> Chan<T> {
+        self.sender.send(Box::new(Choice::LeftChoice)).unwrap();
+        cast_channel!(self)
+    }
+
+    pub fn choose_right(self) -> Chan<S> {
+        self.sender.send(Box::new(Choice::RightChoice)).unwrap();
+        cast_channel!(self)
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -156,7 +202,7 @@ mod test {
                 let c = c.send(n + 1);
                 c.close()
             }
-            Branch::Right(c) => c.close(),
+            Branch::Right(c) => c.close()
         });
 
         let client = thread::spawn(move || {
